@@ -20,6 +20,7 @@ contract Main is Ownable {
 	struct Student {
 		address receiverAddress;
 		uint256 receivedEpoch;
+		bool isRemoved;
 	}
 
 	struct Donator {
@@ -29,7 +30,7 @@ contract Main is Ownable {
 		uint256 donatedAmount;
 	}
 
-	// would arrays be better? TODO: discuss.
+	mapping(address => uint256) studentAddressToStudentId;
 	mapping(uint256 => Student) private students;
 	mapping(uint256 => Donator) private donators;
 	mapping(address => bool) private validators;
@@ -49,9 +50,12 @@ contract Main is Ownable {
 	uint256 private startTime;
 	uint256 private periodLength;
 
-	constructor(uint256 _periodLength){
+	uint8 requiredValidations;
+
+	constructor(uint256 _periodLength, uint8 _requiredValidations){
 		startTime = block.timestamp;
 		periodLength = _periodLength;
+		requiredValidations = _requiredValidations;
 	}
 
 	modifier onlyValidator() {
@@ -64,8 +68,9 @@ contract Main is Ownable {
 	}
 
 	function addStudent(address studentAddress) public onlyOwner {
-		Student memory s = Student(studentAddress, 0, 0, false, true); // not sure what the second argument should be.
+		Student memory s = Student(studentAddress, 0, false); // not sure what the second argument should be.
 		students[numberOfStudents] = s;
+		studentAddressToStudentId[studentAddress] = numberOfStudents;
 		++numberOfStudents;
 	}
 
@@ -73,13 +78,8 @@ contract Main is Ownable {
 		// this one is a little tricky.
 		// if not the last student, swap "indexes" then decrease noOfStudents
 		// if the last student, decrease noOfStudents.
-
-		if(studentId != numberOfStudents - 1){
-			students[studentId] = students[numberOfStudents - 1];
-			delete students[numberOfStudents - 1];
-		}
-
-		--numberOfStudents;
+		
+		students[studentId].isRemoved = true;
 	}
 
 	function addValidator(address newValidator) public onlyOwner {
@@ -95,36 +95,45 @@ contract Main is Ownable {
 		I put student id here because when we send validators student infos, we will loop through the mapping, so we can send ids as well.
 		Id being here the key for the Student in the mapping.
 	 */
-	function validateStudentEpochAllowance(uint256 studentId) public onlyValidator {
+	function validateStudentPeriodAllowance(uint256 studentId) public onlyValidator {
 		Student storage s = students[studentId];
-		require(validations[_epoch][sha256(msg.sender, s.receiverAddress)], "Already validated this address.");
+
+		require(s.isRemoved == false, "Student has been removed.");
+
+		uint256 curPeriod = getCurrentPeriod();
+
+		require(validatorValidatedStudent[curPeriod][address(msg.sender)][studentId] == false, "Already validated this address.");
 		
-		++s.validatedCount;
+		++validationCounts[curPeriod][studentId];
 
-		validations[_epoch][sha256(msg.sender, s.receiverAddress)] = true;
+		validatorValidatedStudent[curPeriod][address(msg.sender)][studentId] = true;
 	}
 
-	function canWithdraw(Student memory student) internal returns (bool) {
-		return (student.validatedCount * 10 / numberOfValidators > 5); // validatedCount / numberOf Validators > %50, open to discussion probably lhs should be higher
-	
-		// maybe && block.timestamp - student.receivedEpoch > 1 epoch ?
+	function canWithdraw(uint256 studentId) internal returns (bool) {
+		uint256 curPeriod = getCurrentPeriod();
+		uint8 validatedCount = validationCounts[curPeriod][studentId];
+		return validatedCount > requiredValidations;
 	}
 
+
+	// this has to change.
 	function withdrawAsStudent() public {
-		Student memory student = students[msg.sender];
+		uint256 studentId = studentAddressToStudentId[address(msg.sender)];
+		Student memory student = students[studentId];
+		uint256 curPeriod = getCurrentPeriod();
 
-		require(student.applicationApproved, "Not a valid student address.");
-		require(!student.withdrewThisEpoch, "Donation for period withdrewn.");
-		require(canWithdraw(student), "Not enough approvals yet.");
+		require(student.isRemoved == false, "You have been removed from the project"); // see removeStudent.
+		require(canWithdraw(studentId), "Not enough validations.");
+		require(studentWithdrew[curPeriod][studentId] == false, "You've withdrew this period.");
 
+		studentWithdrew[curPeriod][studentId] = true;
 
-		student.withdrewThisEpoch = true;
+		// rest, I haven't touched.
 		uint256 amount_ = withdrawAllowance[msg.sender];
 		withdrawAllowance[msg.sender] = 0;	
 		payable(msg.sender).transfer(amount_);
 
 		emit WithdrawAsStudent(msg.sender,amount_);
-
 		
 	}
 
