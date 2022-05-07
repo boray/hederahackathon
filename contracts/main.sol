@@ -20,9 +20,6 @@ contract Main is Ownable {
 	struct Student {
 		address receiverAddress;
 		uint256 receivedEpoch;
-		uint8 validatedCount;
-		bool withdrewThisEpoch; // this might be the same thing with receivedEpoch, let's discuss which on would be bettter,
-								// I think contract owner should reset epoch, we can change that though
 	}
 
 	struct Donator {
@@ -38,27 +35,32 @@ contract Main is Ownable {
 	mapping(address => bool) private validators;
 	mapping(address => uint256) private withdrawAllowance;
 
-	/**
-	 	epoch to (sha256(validatorAddress, studentAddress) => bool)
-		to check if the validator already validated the student
-	*/
-	mapping(uint256 => mapping(bytes32 => bool)) private validations; 
+
+	//		period				studentId   count
+	mapping(uint256 => mapping(uint256 => uint8)) private validationCounts;
+	//	period				validator addr.	     studentId	validated
+	mapping(uint256 => mapping(address => mapping(uint256 => bool))) private validatorValidatedStudent;
+	//		period			  studentId		hasWitdrew
+	mapping(uint256 => mapping(uint256 => bool)) private studentWithdrew;
 
 	uint8 private numberOfValidators;
 	uint256 private numberOfStudents;
 
-	modifier onlyValidator() {
-		require(validators[msg.sender], "YOU ARE NOT VALIDATOR!");
-		
+	uint256 private startTime;
+	uint256 private periodLength;
+
+	constructor(uint256 _periodLength){
+		startTime = block.timestamp;
+		periodLength = _periodLength;
 	}
 
-	function nextEpoch() public onlyOwner {
-		++_epoch;
+	modifier onlyValidator() {
+		require(validators[msg.sender], "YOU ARE NOT VALIDATOR!");
+		_;
+	}
 
-		for (uint256 i = 0; i < numberOfStudents; i++){
-			students[i].validatedCount = 0;
-			students[i].withdrewThisEpoch = false;
-		}
+	function getCurrentPeriod() internal returns(uint256) {
+		return (block.timestamp - startTime) % periodLength;
 	}
 
 	function addStudent(address studentAddress) public onlyOwner {
@@ -86,9 +88,9 @@ contract Main is Ownable {
 	}
 	
 
-  function removeValidator(address validatorToRemove) public onlyOwner {
-    validators[validatorToRemove] = false;
-  }
+	function removeValidator(address validatorToRemove) public onlyOwner {
+		validators[validatorToRemove] = false;
+	}
 	/**
 		I put student id here because when we send validators student infos, we will loop through the mapping, so we can send ids as well.
 		Id being here the key for the Student in the mapping.
