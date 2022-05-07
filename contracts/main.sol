@@ -42,8 +42,8 @@ contract Main is Ownable {
 		validators[newValidator] = true;
 	}
 	
-        function removeValidator(address newValidator) public onlyOwner {
-        	validators[newValidator] = true;
+        function removeValidator(address validatorToRemove) public onlyOwner {
+        	validators[validatorToRemove] = false;
         }
 	
 	function validateStudentEpochAllowance() public onlyValidator {
