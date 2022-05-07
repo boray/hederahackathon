@@ -10,14 +10,10 @@ import "./erc1643.sol";
 
 
 contract Main is Ownable {
-	uint256 private _epoch; // very important, needs a discussion.
 	
-	event WithdrawAsStudent(address withdrawer, uint256 amount);
-
 	struct Student {
 		address receiverAddress;
-		uint256 receivedEpoch;
-		bool isRemoved;
+		uint256 receivedPeriod;
 	}
 
 	struct Donator {
@@ -27,18 +23,19 @@ contract Main is Ownable {
 		uint256 donatedAmount;
 	}
 
-	mapping(address => uint256) studentAddressToStudentId;
 	struct Document {
         string uri;
         bytes32 documentHash;
         uint256 timestamp;
     }
 
-	// studentId -> document name -> document
+	//      student address -> studentId
+	mapping(address => uint256) studentAddressToStudentId;
+	//      studentId -> document name -> document
 	mapping(uint256 => mapping(bytes32 => Document)) private _documents; 
-	// studentId -> index -> document name
+	//      studentId -> index -> document name
 	mapping(uint256 => mapping(uint256 => bytes32)) private _docNames;
-	//studentId -> no of docs
+	//      studentId -> no of docs
 	mapping(uint256 => uint256) private _noOfDocs;
 
 	mapping(uint256 => Student) private students;
@@ -54,13 +51,25 @@ contract Main is Ownable {
 	//		period			  studentId		hasWitdrew
 	mapping(uint256 => mapping(uint256 => bool)) private studentWithdrew;
 
+
 	uint8 private numberOfValidators;
 	uint256 private numberOfStudents;
+	uint256 private numberOfDonators;
+
 
 	uint256 private startTime;
 	uint256 private periodLength;
 
 	uint8 requiredValidations;
+
+	event WithdrawAsStudent(address withdrawer, uint256 amount);
+	// other actions could be logged with events
+
+	modifier onlyValidator() {
+		require(validators[msg.sender], "YOU ARE NOT VALIDATOR!");
+		_;
+	}
+
 
 	constructor(uint256 _periodLength, uint8 _requiredValidations){
 		startTime = block.timestamp;
@@ -68,13 +77,10 @@ contract Main is Ownable {
 		requiredValidations = _requiredValidations;
 	}
 
-	modifier onlyValidator() {
-		require(validators[msg.sender], "YOU ARE NOT VALIDATOR!");
-		_;
-	}
-
-	function getCurrentPeriod() internal view returns(uint256) {
-		return (block.timestamp - startTime) % periodLength;
+	function donate() public payable {
+    Donator memory donator = Donator(msg.sender, msg.value);
+	// donator should be added to donater mapping
+	
 	}
 
 	function getDocument(uint256 _studentId, bytes32 _name) public view  returns (string memory, bytes32, uint256){
@@ -126,7 +132,7 @@ contract Main is Ownable {
 
 
 	function addStudent(address studentAddress) public onlyOwner {
-		Student memory s = Student(studentAddress, 0, false); // not sure what the second argument should be.
+		Student memory s = Student(studentAddress, 0); // not sure what the second argument should be.
 		students[numberOfStudents] = s;
 		studentAddressToStudentId[studentAddress] = numberOfStudents;
 		++numberOfStudents;
@@ -134,10 +140,8 @@ contract Main is Ownable {
 
 	function removeStudent(uint256 studentId) public onlyOwner {
 		// this one is a little tricky.
-		// if not the last student, swap "indexes" then decrease noOfStudents
-		// if the last student, decrease noOfStudents.
 		
-		students[studentId].isRemoved = true;
+		delete students[studentId];
 	}
 
 	function addValidator(address newValidator) public onlyOwner {
@@ -154,37 +158,25 @@ contract Main is Ownable {
 		Id being here the key for the Student in the mapping.
 	 */
 	function validateStudentPeriodAllowance(uint256 studentId) public onlyValidator {
-		Student storage s = students[studentId];
 
-		require(s.isRemoved == false, "Student has been removed.");
+		uint256 currentPeriod = getCurrentPeriod();
 
-		uint256 curPeriod = getCurrentPeriod();
-
-		require(validatorValidatedStudent[curPeriod][address(msg.sender)][studentId] == false, "Already validated this address.");
+		require(validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] == false, "Already validated this address.");
 		
-		++validationCounts[curPeriod][studentId];
+		++validationCounts[currentPeriod][studentId];
 
-		validatorValidatedStudent[curPeriod][address(msg.sender)][studentId] = true;
+		validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] = true;
 	}
-
-	function canWithdraw(uint256 studentId) internal returns (bool) {
-		uint256 curPeriod = getCurrentPeriod();
-		uint8 validatedCount = validationCounts[curPeriod][studentId];
-		return validatedCount > requiredValidations;
-	}
-
 
 	// this has to change.
 	function withdrawAsStudent() public {
 		uint256 studentId = studentAddressToStudentId[address(msg.sender)];
-		Student memory student = students[studentId];
-		uint256 curPeriod = getCurrentPeriod();
+		uint256 currentPeriod = getCurrentPeriod();
 
-		require(student.isRemoved == false, "You have been removed from the project"); // see removeStudent.
 		require(canWithdraw(studentId), "Not enough validations.");
-		require(studentWithdrew[curPeriod][studentId] == false, "You've withdrew this period.");
+		require(studentWithdrew[currentPeriod][studentId] == false, "You've withdrew this period.");
 
-		studentWithdrew[curPeriod][studentId] = true;
+		studentWithdrew[currentPeriod][studentId] = true;
 
 		// rest, I haven't touched.
 		uint256 amount_ = withdrawAllowance[msg.sender];
@@ -195,10 +187,15 @@ contract Main is Ownable {
 		
 	}
 
-	function donate() public payable {
-        
-	
-	
+
+	function getCurrentPeriod() internal view returns(uint256) { 
+		return (block.timestamp - startTime) % periodLength;
+	}
+
+	function canWithdraw(uint256 studentId) internal view returns (bool) { 
+		uint256 currentPeriod = getCurrentPeriod();
+		uint8 validatedCount = validationCounts[currentPeriod][studentId];
+		return validatedCount > requiredValidations;
 	}
 
 }
