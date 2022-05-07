@@ -85,8 +85,8 @@ contract Main is Ownable {
 		++numberOfValidators;
 	}
 	
-	function removeValidator(address newValidator) public onlyOwner {
-		validators[newValidator] = true;
+	function removeValidator(address validatorToRemove) public onlyOwner {
+		validators[validatorToRemove] = false;
 		--numberOfValidators;
 	}
 	/**
