@@ -85,10 +85,10 @@ contract Main is Ownable {
 		++numberOfValidators;
 	}
 	
-	function removeValidator(address validatorToRemove) public onlyOwner {
-		validators[validatorToRemove] = false;
-		--numberOfValidators;
-	}
+
+  function removeValidator(address validatorToRemove) public onlyOwner {
+    validators[validatorToRemove] = false;
+  }
 	/**
 		I put student id here because when we send validators student infos, we will loop through the mapping, so we can send ids as well.
 		Id being here the key for the Student in the mapping.
