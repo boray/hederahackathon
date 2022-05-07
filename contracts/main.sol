@@ -2,17 +2,14 @@
 pragma solidity ^0.8.1;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-
-
+import "./erc1643.sol";
 
 //Donator ===> Donate Pool ===> Validators checks student docs & sets withdraw allowance  ===> Student withdraws eth
 
 //Epoch : Weekly, Biweekly or Monthly cycles for validating student docs and setting allowances
 
 
-
-
-contract Main is Ownable {
+contract Main is Ownable, IERC1643 {
 	uint256 private _epoch; // very important, needs a discussion.
 	
 	event WithdrawAsStudent(address withdrawer, uint256 amount);
@@ -32,7 +29,19 @@ contract Main is Ownable {
 		uint256 donatedAmount;
 	}
 
-	// would arrays be better? TODO: discuss.
+	struct Document {
+        string uri;
+        bytes32 documentHash;
+        uint256 timestamp;
+    }
+
+	// studentId -> document name -> document
+	mapping(uint256 => mapping(bytes32 => Document)) private _documents; 
+	// studentId -> index -> document name
+	mapping(uint256 => mapping(uint256 => bytes32)) private _docNames;
+	//studentId -> no of docs
+	mapping(uint256 => uint256) private _noOfDocs;
+
 	mapping(uint256 => Student) private students;
 	mapping(uint256 => Donator) private donators;
 	mapping(address => bool) private validators;
@@ -51,6 +60,53 @@ contract Main is Ownable {
 		require(validators[msg.sender], "YOU ARE NOT VALIDATOR!");
 		
 	}
+
+	function getDocument(uint256 _studentId, bytes32 _name) public view override returns (string memory, bytes32, uint256){
+        Document memory doc = _documents[_studentId][_name];
+        return (doc.uri, doc.documentHash, doc.timestamp);
+    }
+
+	function getAllDocuments(uint256 _studentId) public view override returns (bytes32[] memory){
+        bytes32[] memory names = new bytes32[](_noOfDocs[_studentId]);
+        for(uint256 i = 0; i < _noOfDocs[_studentId]; i++){
+            names[i] = _docNames[_studentId][i];
+        }
+        return names;
+    }
+
+	function setDocument(uint256 _studentId, bytes32 _name, string memory _uri, 
+			bytes32 _documentHash) public override{
+		require(msg.sender == students[_studentId].receiverAddress);
+        Document storage doc = _documents[_studentId][_name];
+        if(doc.timestamp == 0){
+            _docNames[_studentId][_noOfDocs[_studentId]] = _name;
+            _noOfDocs[_studentId] += 1;
+        }
+        else{
+            emit DocumentUpdated(_name, _uri, _documentHash);
+        }
+        doc.timestamp = block.timestamp;
+        doc.uri = _uri;
+        doc.documentHash = _documentHash;
+    }
+
+	function removeDocument(uint256 _studentId, bytes32 _name) public override {
+		require(msg.sender == students[_studentId].receiverAddress);
+        bool arrivedIdx = false;
+        for(uint256 i = 0; i < _noOfDocs[_studentId]; i++){
+            if(_docNames[_studentId][i] == _name){
+                arrivedIdx = true;
+            }
+            if(arrivedIdx){
+                _docNames[_studentId][i] = _docNames[_studentId][i + 1];
+            }
+        }
+        Document memory doc = _documents[_studentId][_name];
+        require(doc.timestamp != 0);
+        delete _documents[_studentId][_name];
+        noOfDocs -= 1;
+        emit DocumentRemoved(_name, doc.uri, doc.documentHash);
+    }
 
 	function nextEpoch() public onlyOwner {
 		++_epoch;
