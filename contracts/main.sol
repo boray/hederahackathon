@@ -2,67 +2,68 @@
 pragma solidity ^0.8.1;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./erc1643.sol";
+import "./ERC1643.sol";
 
 //Donator ===> Donate Pool ===> Validators checks student docs & sets withdraw allowance  ===> Student withdraws eth
 
 //Epoch : Weekly, Biweekly or Monthly cycles for validating student docs and setting allowances
 
+/*
+TODO Below:
+~ TESTING AND STATIC ANALYSIS
+~ We can consider using NATSPEC
+~ Simplifications and optimizations can be made
+~ Naming and ordering could be improved according to Solidity convention 
+*/
 
-contract Main is Ownable {
+
+/* What I have done:
+	
+
+
+
+*/
+contract Main is Ownable, DocumentManager {
 	
 	struct Student {
-		address receiverAddress;
-		uint256 receivedPeriod;
+		address receiverAddress; // address of the student
+		uint256 receivedPeriod; // ?
 	}
 
 	struct Donator {
-		address donatorAddress;
-		string name;
-		string uri;
-		uint256 donatedAmount;
+		address donatorAddress; // address of the donator
+		string name;	//name -> donator could be an individual or a company, this is name of that
+		string uri;		//uri -> URI of donator's website or social media profile
+		uint256 donatedAmount; // total amount of donations made by donator
 	}
 
-	struct Document {
-        string uri;
-        bytes32 documentHash;
-        uint256 timestamp;
-    }
+	mapping(address => uint256) studentAddressToStudentId;	// student address -> studentId
+	mapping(address => uint256) donatorAddressToDonatorId;	// donator address -> donatorId
+	mapping(uint256 => mapping(bytes32 => Document)) private _documents; 	// studentId -> document name -> document
+	mapping(uint256 => mapping(uint256 => bytes32)) private _docNames;	// studentId -> index -> document name
+	mapping(uint256 => uint256) private _noOfDocs;	// studentId -> no of docs
+	mapping(uint256 => Student) private students; // studentId -> Student struct
+	mapping(uint256 => Donator) private donators; // donatorId -> Donator struct
+	mapping(address => bool) private validators; // mapping to store validator addresses
+	mapping(address => uint256) private withdrawAllowance; // student adress -> amount in wei  | withdrawal allowence in an epoch
+	mapping(uint256 => mapping(uint256 => uint8)) private validationCounts;	//	(period	-> (studentId  -> count))
+	mapping(uint256 => mapping(address => mapping(uint256 => bool))) private validatorValidatedStudent;	//	(period ->(validator address ->	 (studentId	-> validated)))
+	mapping(uint256 => mapping(uint256 => bool)) private studentWithdrew; 	//	(period -> (studentId -> hasWitdrew))
 
-	//      student address -> studentId
-	mapping(address => uint256) studentAddressToStudentId;
-	//      studentId -> document name -> document
-	mapping(uint256 => mapping(bytes32 => Document)) private _documents; 
-	//      studentId -> index -> document name
-	mapping(uint256 => mapping(uint256 => bytes32)) private _docNames;
-	//      studentId -> no of docs
-	mapping(uint256 => uint256) private _noOfDocs;
+	uint256 private constant MINIMUM_DONATION_AMOUNT=1000000000000000000; // floor donation amount in wei 
 
-	mapping(uint256 => Student) private students;
-	mapping(uint256 => Donator) private donators;
-	mapping(address => bool) private validators;
-	mapping(address => uint256) private withdrawAllowance;
-
-
-	//		period				studentId   count
-	mapping(uint256 => mapping(uint256 => uint8)) private validationCounts;
-	//	period				validator addr.	     studentId	validated
-	mapping(uint256 => mapping(address => mapping(uint256 => bool))) private validatorValidatedStudent;
-	//		period			  studentId		hasWitdrew
-	mapping(uint256 => mapping(uint256 => bool)) private studentWithdrew;
+	uint8 private numberOfValidators; // total number of validators
+	uint256 private numberOfStudents; // total number of students
+	uint256 private numberOfDonators; // total number of donators
 
 
-	uint8 private numberOfValidators;
-	uint256 private numberOfStudents;
-	uint256 private numberOfDonators;
+	uint256 private startTime; //timestamp of contract deployment (seconds passed since 1 Jan 1970)| its value assigned in constructor
+	uint256 private periodLength; // length of a epoch in seconds
 
-
-	uint256 private startTime;
-	uint256 private periodLength;
-
-	uint8 requiredValidations;
+	uint8 requiredValidations; // required quantity of validator to set withdrawal allowence for a student
 
 	event WithdrawAsStudent(address withdrawer, uint256 amount);
+	event NewDonation(address donatorAddress, string name, string uri, uint256 amount);
 	// other actions could be logged with events
 
 	modifier onlyValidator() {
@@ -77,9 +78,21 @@ contract Main is Ownable {
 		requiredValidations = _requiredValidations;
 	}
 
-	function donate() public payable {
-    Donator memory donator = Donator(msg.sender, msg.value);
-	// donator should be added to donater mapping
+
+	function donate(string memory name_, string memory uri_) public payable { 
+		require(msg.value > MINIMUM_DONATION_AMOUNT,"DONATED AMOUNT IS BELOW LIMIT"); // floor donation amount to prevent spamming
+		Donator memory donator_;
+		if(donators[donatorAddressToDonatorId[msg.sender]].donatedAmount != 0){
+			uint newDonatedAmount = donators[donatorAddressToDonatorId[msg.sender]].donatedAmount + msg.value;
+    		donator_ = Donator(msg.sender,name_,uri_, newDonatedAmount); 
+		}
+		else{
+    		donator_= Donator(msg.sender, name_, uri_, msg.value);
+		}
+
+		donators[donatorAddressToDonatorId[msg.sender]] = donator_;
+
+		emit NewDonation(msg.sender,name_,uri_,msg.value);
 	
 	}
 
@@ -161,8 +174,8 @@ contract Main is Ownable {
 
 		uint256 currentPeriod = getCurrentPeriod();
 
-		require(validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] == false, "Already validated this address.");
-		
+		require(validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] != false, "Already validated this address."); 
+	
 		++validationCounts[currentPeriod][studentId];
 
 		validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] = true;
