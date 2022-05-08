@@ -1,4 +1,24 @@
 // SPDX-License-Identifier: MIT
+
+/*
+TODO Below:
+~ We can consider using NATSPEC
+~ Naming could be improved according to Solidity naming convention 
+	
+*/
+
+/* What I have done 
+    (boray: 8.5.22-02.45) :
+	    ~ Added virtual to DocumentManager contract functions
+        ~ This made possible to override this functions in main contract. 
+        ~ But why we have to override functions in the main contract
+        ~ Because in the former code, We were importing ERC1643.sol but not using it
+        ~ This is simply not legit
+        ~
+        
+*/
+
+
 pragma solidity ^0.8.1;
 
 interface IERC1643 {
@@ -26,12 +46,12 @@ contract DocumentManager is IERC1643 {
     mapping(uint => bytes32) private _docNames; // index -> document name
     uint256 public noOfDocs = 0;
 
-    function getDocument(bytes32 _name) public view override returns (string memory, bytes32, uint256){
+    function getDocument(bytes32 _name) public view virtual override returns (string memory, bytes32, uint256){
         Document memory doc = _documents[_name];
         return (doc.uri, doc.documentHash, doc.timestamp);
     }
 
-    function setDocument(bytes32 _name, string memory _uri, bytes32 _documentHash) public override{
+    function setDocument(bytes32 _name, string memory _uri, bytes32 _documentHash) public virtual override{
         Document storage doc = _documents[_name];
         if(doc.timestamp == 0){
             _docNames[noOfDocs] = _name;
@@ -45,7 +65,7 @@ contract DocumentManager is IERC1643 {
         doc.documentHash = _documentHash;
     }
 
-    function removeDocument(bytes32 _name) public override {
+    function removeDocument(bytes32 _name) public virtual override {
         bool arrivedIdx = false;
         for(uint256 i = 0; i < noOfDocs; i++){
             if(_docNames[i] == _name){
@@ -62,7 +82,7 @@ contract DocumentManager is IERC1643 {
         emit DocumentRemoved(_name, doc.uri, doc.documentHash);
     }
 
-    function getAllDocuments() public view override returns (bytes32[] memory){
+    function getAllDocuments() public view virtual override returns (bytes32[] memory){
         bytes32[] memory names = new bytes32[](noOfDocs);
         for(uint256 i = 0; i < noOfDocs; i++){
             names[i] = _docNames[i];
