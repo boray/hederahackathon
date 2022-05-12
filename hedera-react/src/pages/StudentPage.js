@@ -27,7 +27,9 @@ const StudentPage = () => {
     }, [])
 
     const uploadDocument = async () => {
-        const txn = await ctc.setDocument(id, docName, docUri, docHash);
+        const name = ethers.utils.formatBytes32String(docName);
+        const hash = ethers.utils.formatBytes32String(docHash)
+        const txn = await ctc.setDocument(id, name, docUri, hash);
         const receipt = await txn.wait();
         console.log(receipt);
     }

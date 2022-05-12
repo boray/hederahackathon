@@ -61,7 +61,7 @@ const ValidatorPage = () => {
                 const documents = [];
                 for (let j = 0; j < len; j++) {
                     const doc = await getDocument(i, names[j]);
-                    const name = await (names[j]); //convert to string
+                    const name = await convertToString(names[j]); 
                     const documentHash = await convertToString(doc[1]);
                     const timestamp = doc[2].toNumber();
                     const uri = doc[0];
