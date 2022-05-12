@@ -51,7 +51,6 @@ contract Main is Ownable {
 	mapping(uint256 => Student) private students; // studentId -> Student struct
 	mapping(uint256 => Donator) private donators; // donatorId -> Donator struct
 	mapping(address => bool) private validators; // mapping to store validator addresses
-	mapping(address => uint256) private withdrawAllowance; // student adress -> amount in wei  | withdrawal allowence in an epoch
 	mapping(uint256 => mapping(uint256 => uint8)) private validationCounts;	//	(period	-> (studentId  -> count))
 	mapping(uint256 => mapping(address => mapping(uint256 => bool))) private validatorValidatedStudent;	//	(period ->(validator address ->	 (studentId	-> validated)))
 	mapping(uint256 => mapping(uint256 => bool)) private studentWithdrew; 	//	(period -> (studentId -> hasWitdrew))
@@ -193,13 +192,13 @@ contract Main is Ownable {
 		uint256 currentPeriod = getCurrentPeriod();
 
 		require(canWithdraw(studentId), "Not enough validations.");
+		require(students[studentId].receiverAddress == msg.sender, "You are not a student");
 		require(studentWithdrew[currentPeriod][studentId] == false, "You've withdrew this period.");
 
 		studentWithdrew[currentPeriod][studentId] = true;
 
 		// rest, I haven't touched.
-		uint256 amount_ = withdrawAllowance[msg.sender];
-		withdrawAllowance[msg.sender] = 0;	
+		uint256 amount_ = address(this).balance / numberOfStudents;
 		payable(msg.sender).transfer(amount_);
 
 		emit WithdrawAsStudent(msg.sender,amount_);
@@ -222,7 +221,16 @@ contract Main is Ownable {
     }
 
     function getClaimableAmount() public view returns(uint256){
-        return withdrawAllowance[msg.sender];
+		uint256 studentId = studentAddressToStudentId[msg.sender];
+		require(students[studentId].receiverAddress == msg.sender, "You are not a student");
+		uint256 currentPeriod = getCurrentPeriod();
+		if(studentWithdrew[currentPeriod][studentId]){
+			return 0;
+		}
+		else{
+			return address(this).balance / numberOfStudents;
+		}
+        
     }
 
 }
