@@ -23,7 +23,7 @@ TODO Below:
 
 
 */
-contract Main is Ownable, DocumentManager {
+contract Main is Ownable {
 	
 	struct Student {
 		address receiverAddress; // address of the student
@@ -37,6 +37,12 @@ contract Main is Ownable, DocumentManager {
 		uint256 donatedAmount; // total amount of donations made by donator
 	}
 
+    struct Document {
+        string uri;
+        bytes32 documentHash;
+        uint256 timestamp;
+    }
+
 	mapping(address => uint256) studentAddressToStudentId;	// student address -> studentId
 	mapping(address => uint256) donatorAddressToDonatorId;	// donator address -> donatorId
 	mapping(uint256 => mapping(bytes32 => Document)) private _documents; 	// studentId -> document name -> document
@@ -45,12 +51,12 @@ contract Main is Ownable, DocumentManager {
 	mapping(uint256 => Student) private students; // studentId -> Student struct
 	mapping(uint256 => Donator) private donators; // donatorId -> Donator struct
 	mapping(address => bool) private validators; // mapping to store validator addresses
-
+	mapping(address => uint256) private withdrawAllowance; // student adress -> amount in wei  | withdrawal allowence in an epoch
 	mapping(uint256 => mapping(uint256 => uint8)) private validationCounts;	//	(period	-> (studentId  -> count))
 	mapping(uint256 => mapping(address => mapping(uint256 => bool))) private validatorValidatedStudent;	//	(period ->(validator address ->	 (studentId	-> validated)))
 	mapping(uint256 => mapping(uint256 => bool)) private studentWithdrew; 	//	(period -> (studentId -> hasWitdrew))
 
-	uint256 private constant MINIMUM_DONATION_AMOUNT=1000000000000000000; // floor donation amount in wei 
+	uint256 private constant MINIMUM_DONATION_AMOUNT= 1 gwei; // floor donation amount in wei 
 
 	uint8 private numberOfValidators; // total number of validators
 	uint256 private numberOfStudents; // total number of students
@@ -174,7 +180,7 @@ contract Main is Ownable, DocumentManager {
 
 		uint256 currentPeriod = getCurrentPeriod();
 
-		require(validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] != false, "Already validated this address."); 
+		require(validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] == false, "Already validated this address."); 
 	
 		++validationCounts[currentPeriod][studentId];
 
@@ -192,7 +198,8 @@ contract Main is Ownable, DocumentManager {
 		studentWithdrew[currentPeriod][studentId] = true;
 
 		// rest, I haven't touched.
-		uint256 amount_ = address(this).balance;
+		uint256 amount_ = withdrawAllowance[msg.sender];
+		withdrawAllowance[msg.sender] = 0;	
 		payable(msg.sender).transfer(amount_);
 
 		emit WithdrawAsStudent(msg.sender,amount_);
@@ -210,8 +217,12 @@ contract Main is Ownable, DocumentManager {
 		return validatedCount > requiredValidations;
 	}
 
-    function getNoOfStudents() public view returns(uint){
+    function getNoOfStudents() public view returns(uint256){
         return numberOfStudents;
+    }
+
+    function getClaimableAmount() public view returns(uint256){
+        return withdrawAllowance[msg.sender];
     }
 
 }
