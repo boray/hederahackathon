@@ -211,6 +211,10 @@ contract Main is Ownable, DocumentManager {
 		return validatedCount > requiredValidations;
 	}
 
+    function getNoOfStudents() public view returns(uint){
+        return numberOfStudents;
+    }
+
 }
 
 
