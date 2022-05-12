@@ -20,8 +20,6 @@ TODO Below:
 /* What I have done:
 	
 
-
-
 */
 contract Main is Ownable {
 	
@@ -43,6 +41,8 @@ contract Main is Ownable {
         uint256 timestamp;
     }
 
+	
+
 	mapping(address => uint256) studentAddressToStudentId;	// student address -> studentId
 	mapping(address => uint256) donatorAddressToDonatorId;	// donator address -> donatorId
 	mapping(uint256 => mapping(bytes32 => Document)) private _documents; 	// studentId -> document name -> document
@@ -55,6 +55,9 @@ contract Main is Ownable {
 	mapping(uint256 => mapping(address => mapping(uint256 => bool))) private validatorValidatedStudent;	//	(period ->(validator address ->	 (studentId	-> validated)))
 	mapping(uint256 => mapping(uint256 => bool)) private studentWithdrew; 	//	(period -> (studentId -> hasWitdrew))
 
+	uint256 private periodNo = 0;
+	uint256 private claimablePerStudent = 0;
+	
 	uint256 private constant MINIMUM_DONATION_AMOUNT= 1 gwei; // floor donation amount in wei 
 
 	uint8 private numberOfValidators; // total number of validators
@@ -176,26 +179,24 @@ contract Main is Ownable {
 		Id being here the key for the Student in the mapping.
 	 */
 	function validateStudentPeriodAllowance(uint256 studentId) public onlyValidator {
-
-		uint256 currentPeriod = getCurrentPeriod();
-
-		require(validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] == false, "Already validated this address."); 
+		require(periodNo != 0);
+		require(validatorValidatedStudent[periodNo][address(msg.sender)][studentId] == false, "Already validated this address."); 
 	
-		++validationCounts[currentPeriod][studentId];
+		++validationCounts[periodNo][studentId];
 
-		validatorValidatedStudent[currentPeriod][address(msg.sender)][studentId] = true;
+		validatorValidatedStudent[periodNo][address(msg.sender)][studentId] = true;
 	}
 
 	// this has to change.
 	function withdrawAsStudent() public {
+		require(periodNo != 0);
 		uint256 studentId = studentAddressToStudentId[address(msg.sender)];
-		uint256 currentPeriod = getCurrentPeriod();
 
 		require(canWithdraw(studentId), "Not enough validations.");
 		require(students[studentId].receiverAddress == msg.sender, "You are not a student");
-		require(studentWithdrew[currentPeriod][studentId] == false, "You've withdrew this period.");
+		require(studentWithdrew[periodNo][studentId] == false, "You've withdrew this period.");
 
-		studentWithdrew[currentPeriod][studentId] = true;
+		studentWithdrew[periodNo][studentId] = true;
 
 		// rest, I haven't touched.
 		uint256 amount_ = address(this).balance / numberOfStudents;
@@ -205,15 +206,9 @@ contract Main is Ownable {
 		
 	}
 
-
-	function getCurrentPeriod() internal view returns(uint256) { 
-		return (block.timestamp - startTime) % periodLength;
-	}
-
 	function canWithdraw(uint256 studentId) internal view returns (bool) { 
-		uint256 currentPeriod = getCurrentPeriod();
-		uint8 validatedCount = validationCounts[currentPeriod][studentId];
-		return validatedCount > requiredValidations;
+		uint8 validatedCount = validationCounts[periodNo][studentId];
+		return validatedCount >= requiredValidations;
 	}
 
     function getNoOfStudents() public view returns(uint256){
@@ -222,16 +217,28 @@ contract Main is Ownable {
 
     function getClaimableAmount() public view returns(uint256){
 		uint256 studentId = studentAddressToStudentId[msg.sender];
+		if(!canWithdraw(studentId)){
+			return 0;
+		}
 		require(students[studentId].receiverAddress == msg.sender, "You are not a student");
-		uint256 currentPeriod = getCurrentPeriod();
-		if(studentWithdrew[currentPeriod][studentId]){
+		
+		if(studentWithdrew[periodNo][studentId]){
 			return 0;
 		}
 		else{
-			return address(this).balance / numberOfStudents;
+			return claimablePerStudent;
 		}
         
     }
+
+	function getIdFromAddress() public view returns(uint256){
+		return studentAddressToStudentId[msg.sender];
+	}
+
+	function nextPeriod() public onlyOwner{
+		periodNo++;
+		claimablePerStudent = address(this).balance / numberOfStudents;
+	}
 
 }
 
