@@ -45,7 +45,7 @@ contract Main is Ownable, DocumentManager {
 	mapping(uint256 => Student) private students; // studentId -> Student struct
 	mapping(uint256 => Donator) private donators; // donatorId -> Donator struct
 	mapping(address => bool) private validators; // mapping to store validator addresses
-	mapping(address => uint256) private withdrawAllowance; // student adress -> amount in wei  | withdrawal allowence in an epoch
+
 	mapping(uint256 => mapping(uint256 => uint8)) private validationCounts;	//	(period	-> (studentId  -> count))
 	mapping(uint256 => mapping(address => mapping(uint256 => bool))) private validatorValidatedStudent;	//	(period ->(validator address ->	 (studentId	-> validated)))
 	mapping(uint256 => mapping(uint256 => bool)) private studentWithdrew; 	//	(period -> (studentId -> hasWitdrew))
@@ -192,8 +192,7 @@ contract Main is Ownable, DocumentManager {
 		studentWithdrew[currentPeriod][studentId] = true;
 
 		// rest, I haven't touched.
-		uint256 amount_ = withdrawAllowance[msg.sender];
-		withdrawAllowance[msg.sender] = 0;	
+		uint256 amount_ = address(this).balance;
 		payable(msg.sender).transfer(amount_);
 
 		emit WithdrawAsStudent(msg.sender,amount_);
