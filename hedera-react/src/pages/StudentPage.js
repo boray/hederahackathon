@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ethers } from "ethers";
 import ctcData from "../artifacts/Main.json";
 
-const ctcAddr = "0xb27c87Ea907A80CCBBBaBC03500db9c810BbB128";
+const ctcAddr = "0x7D662c8B1165549C9Ffa51FDd5c6731dC18d722a";
 
 const provider = new ethers.providers.Web3Provider(window.ethereum);
 const signer = provider.getSigner();
@@ -59,7 +59,7 @@ const StudentPage = () => {
             <div>
                 <h2>Claim Donation</h2>
                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-                    <h3>Claimable Amount: {claimable ?? 0}$</h3>
+                    <h3>Claimable Amount: {claimable ?? -1}$</h3>
                     <button onClick={claimDonation}>Claim</button>
                 </div>
 

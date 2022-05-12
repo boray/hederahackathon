@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import ctcData from "../artifacts/Main.json";
 import Document from "../models/Document";
 
-const ctcAddr = "0xb27c87Ea907A80CCBBBaBC03500db9c810BbB128";
+const ctcAddr = "0x7D662c8B1165549C9Ffa51FDd5c6731dC18d722a";
 
 const provider = new ethers.providers.Web3Provider(window.ethereum);
 const signer = provider.getSigner();
